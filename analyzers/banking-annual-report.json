@@ -1,0 +1,99 @@
+{
+  "description": "Provincial credit union annual report financial metrics and institutional metadata extractor",
+  "baseAnalyzerId": "prebuilt-document",
+  "models": {
+    "completion": "gpt-4.1",
+    "embedding": "text-embedding-3-large"
+  },
+  "config": {
+    "returnDetails": true,
+    "enableFormula": false,
+    "disableContentFiltering": false,
+    "estimateFieldSourceAndConfidence": true,
+    "tableFormat": "html"
+  },
+  "fieldSchema": {
+    "fields": {
+      "ProvincialCreditUnion": {
+        "type": "string",
+        "method": "extract",
+        "description": "The name of the provincial credit union as stated on the report cover or header"
+      },
+      "Province": {
+        "type": "string",
+        "method": "generate",
+        "description": "The Canadian province where this credit union is headquartered and primarily operates (e.g., Ontario, British Columbia, Alberta). Determine from the address, charter information, or institution name."
+      },
+      "MemberOfRIA": {
+        "type": "string",
+        "method": "generate",
+        "description": "Whether the credit union is a member of the Registered Investment Advisors network. Return 'Yes' or 'No'. Look for RIA references in the report or infer from the institution's known affiliations."
+      },
+      "AmountGuaranteed": {
+        "type": "string",
+        "method": "generate",
+        "description": "The deposit guarantee coverage amount or description (e.g., '100% of eligible deposits', '$250,000 per depositor'). Look for deposit insurance/guarantee references in the notes or generate based on the provincial deposit guarantee corporation's known policy."
+      },
+      "DBRS": {
+        "type": "string",
+        "method": "extract",
+        "description": "The DBRS Morningstar credit rating assigned to the credit union (e.g., 'R-1 (low)', 'BBB', 'A'). Look in the financial highlights, governance section, or notes to the financial statements."
+      },
+      "DepositGuaranteeCorporation": {
+        "type": "string",
+        "method": "generate",
+        "description": "The name of the provincial deposit guarantee corporation that insures this credit union's deposits (e.g., 'DICO' for Ontario, 'CUDGC' for BC, 'CUDIC' for Alberta). Determine from the Province field or references in the report."
+      },
+      "CapitalRatio": {
+        "type": "number",
+        "method": "extract",
+        "description": "The Total Capital Ratio as a percentage — total capital (Tier 1 + Tier 2) divided by risk-weighted assets. Extract ONLY from a structured table (capital adequacy table, financial highlights table, or regulatory capital schedule). Do NOT use CET1 ratio or leverage ratio. Do NOT extract from narrative paragraphs, executive summaries, or marketing text. Return as a percentage number (e.g., 14.5 for 14.5%)."
+      },
+      "Assets2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total assets for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet, statement of financial position, or financial highlights table). This is the prior-year comparative figure. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Assets2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total assets for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet, statement of financial position, or financial highlights table). This is the current-year figure. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Deposits2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total deposits for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Deposits', 'Member deposits', or 'Total deposits'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Deposits2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total deposits for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Deposits', 'Member deposits', or 'Total deposits'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "TotalLoans2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total loans for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Loans', 'Loans to members', 'Net loans', or 'Total loans'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "TotalLoans2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total loans for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Loans', 'Loans to members', 'Net loans', or 'Total loans'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "AllowanceForCreditLosses": {
+        "type": "number",
+        "method": "extract",
+        "description": "Allowance for credit losses (ACL) for the most recent period. Extract ONLY from a structured table (balance sheet, ACL rollforward table, loan schedule, or credit quality table). May appear as 'Allowance for credit losses', 'Allowance for loan losses', or 'Expected credit loss allowance'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "LoansWrittenOff": {
+        "type": "number",
+        "method": "extract",
+        "description": "Loans written off, net charge-offs, or net write-offs for the most recent fiscal year. Extract ONLY from a structured table (ACL rollforward table, credit quality table, or loan loss schedule). May appear as 'Write-offs', 'Charge-offs', 'Net write-offs', or 'Loans written off'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "ReportingCurrencyUnit": {
+        "type": "string",
+        "method": "generate",
+        "description": "The unit multiplier for reported figures (e.g., 'millions', 'thousands', 'billions', 'units'). Determine from table headers or notes like 'in thousands of Canadian dollars'. This is needed for unit conversion in post-processing."
+      }
+    }
+  }
+}

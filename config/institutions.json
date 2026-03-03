@@ -1,0 +1,49 @@
+{
+  "pcu": {
+    "label": "Provincial Credit Unions",
+    "institutions": [
+      "Servus Credit Union",
+      "Connect First",
+      "Vancouver City Savings Credit Union",
+      "Meridian Credit Union",
+      "First West Credit Union",
+      "Beem Credit Union",
+      "G&F Financial",
+      "Affinity Credit Union",
+      "Alterna Savings & Credit Union",
+      "DUCA Financial Services Credit Union",
+      "Conexus Credit Union",
+      "Prospera Credit Union",
+      "FirstOntario Credit Union",
+      "BlueShore Financial",
+      "Windsor Family Credit Union",
+      "Coastal Community Credit Union",
+      "Synergy Credit Union",
+      "Kootenay Savings Credit Union",
+      "Tandia Financial Credit Union",
+      "Kindred Credit Union",
+      "Sunshine Coast Credit Union",
+      "Community Savings Credit Union"
+    ]
+  },
+  "bank_fcu_other": {
+    "label": "Banks / Federal Credit Unions / Others",
+    "institutions": [
+      "Royal Bank of Canada",
+      "Toronto-Dominion Bank",
+      "Bank of Nova Scotia",
+      "Bank of Montreal",
+      "Canadian Imperial Bank of Commerce",
+      "Desjardins Group",
+      "National Bank of Canada",
+      "ATB Financial",
+      "Laurentian Bank of Canada",
+      "Canadian Western Bank",
+      "Equitable Bank",
+      "Manulife Bank of Canada",
+      "Coast Capital Savings",
+      "Innovation Credit Union",
+      "Haventree Bank"
+    ]
+  }
+}

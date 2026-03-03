@@ -1,0 +1,109 @@
+{
+  "description": "Bank / Federal Credit Union / Other institution annual report financial metrics and credit ratings extractor",
+  "baseAnalyzerId": "prebuilt-document",
+  "models": {
+    "completion": "gpt-4.1",
+    "embedding": "text-embedding-3-large"
+  },
+  "config": {
+    "returnDetails": true,
+    "enableFormula": false,
+    "disableContentFiltering": false,
+    "estimateFieldSourceAndConfidence": true,
+    "tableFormat": "html"
+  },
+  "fieldSchema": {
+    "fields": {
+      "InstitutionName": {
+        "type": "string",
+        "method": "extract",
+        "description": "The name of the bank or financial institution as stated on the report cover or header."
+      },
+      "MemberOfRIA": {
+        "type": "string",
+        "method": "generate",
+        "description": "Whether the institution is a member of the Registered Investment Advisors network. Return 'Yes' or 'No'. Look for RIA references in the report or infer from the institution's known affiliations."
+      },
+      "ShortTermDBRS": {
+        "type": "string",
+        "method": "extract",
+        "description": "The DBRS Morningstar short-term credit rating assigned to this institution (e.g., 'R-1 (middle)', 'R-1 (high)', 'R-1 (low)'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "ShortTermSP": {
+        "type": "string",
+        "method": "extract",
+        "description": "The S&P Global short-term credit rating assigned to this institution (e.g., 'A-1', 'A-1+', 'A-2'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "ShortTermMoodys": {
+        "type": "string",
+        "method": "extract",
+        "description": "The Moody's short-term credit rating assigned to this institution (e.g., 'P-1', 'P-2'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "LongTermDBRS": {
+        "type": "string",
+        "method": "extract",
+        "description": "The DBRS Morningstar long-term credit rating assigned to this institution (e.g., 'AA', 'AA (low)', 'A (high)', 'BBB'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "LongTermSP": {
+        "type": "string",
+        "method": "extract",
+        "description": "The S&P Global long-term credit rating assigned to this institution (e.g., 'A+', 'AA-', 'BBB+'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "LongTermMoodys": {
+        "type": "string",
+        "method": "extract",
+        "description": "The Moody's long-term credit rating assigned to this institution (e.g., 'Aa2', 'A1', 'Baa1'). Look in credit ratings tables, financial highlights, investor relations sections, or governance disclosures."
+      },
+      "CapitalRatio": {
+        "type": "number",
+        "method": "extract",
+        "description": "The Total Capital Ratio as a percentage — total capital (Tier 1 + Tier 2) divided by risk-weighted assets. Extract ONLY from a structured table (capital adequacy table, financial highlights table, or regulatory capital schedule). Do NOT use CET1 ratio or leverage ratio. Do NOT extract from narrative paragraphs, executive summaries, or marketing text. Return as a percentage number (e.g., 14.5 for 14.5%)."
+      },
+      "Assets2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total assets for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet, statement of financial position, or financial highlights table). This is the prior-year comparative figure. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Assets2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total assets for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet, statement of financial position, or financial highlights table). This is the current-year figure. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Deposits2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total deposits for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Deposits', 'Customer deposits', or 'Total deposits'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "Deposits2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total deposits for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Deposits', 'Customer deposits', or 'Total deposits'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "TotalLoans2023": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total loans for fiscal year 2023. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Loans', 'Loans and acceptances', 'Net loans', or 'Total loans'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "TotalLoans2024": {
+        "type": "number",
+        "method": "extract",
+        "description": "Total loans for fiscal year 2024. Extract ONLY from a structured table (consolidated balance sheet or financial highlights table). May appear as 'Loans', 'Loans and acceptances', 'Net loans', or 'Total loans'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "AllowanceForCreditLosses": {
+        "type": "number",
+        "method": "extract",
+        "description": "Allowance for credit losses (ACL) for the most recent period. Extract ONLY from a structured table (balance sheet, ACL rollforward table, loan schedule, or credit quality table). May appear as 'Allowance for credit losses', 'Allowance for loan losses', or 'Expected credit loss allowance'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "LoansWrittenOff": {
+        "type": "number",
+        "method": "extract",
+        "description": "Loans written off, net charge-offs, or net write-offs for the most recent fiscal year. Extract ONLY from a structured table (ACL rollforward table, credit quality table, or loan loss schedule). May appear as 'Write-offs', 'Charge-offs', 'Net write-offs', or 'Loans written off'. Do NOT extract from narrative paragraphs or marketing text. Return the raw number as reported."
+      },
+      "ReportingCurrencyUnit": {
+        "type": "string",
+        "method": "generate",
+        "description": "The unit multiplier for reported figures (e.g., 'millions', 'thousands', 'billions', 'units'). Determine from table headers or notes like 'in millions of Canadian dollars'. This is needed for unit conversion in post-processing."
+      }
+    }
+  }
+}

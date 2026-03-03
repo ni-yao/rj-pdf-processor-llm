@@ -1,0 +1,33 @@
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# PDFs and data files (not for public repo)
+*.pdf
+*.xlsx
+input/*.pdf
+input/pcu/
+input/bank_fcu_other/
+input/unclassified/
+
+# Output data (generated results)
+output/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store

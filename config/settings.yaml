@@ -1,0 +1,37 @@
+# Analyzer settings
+analyzer_ids:
+  pcu: pcu_annual_report
+  bank_fcu_other: bank_fcu_other_annual_report
+api_version: "2025-11-01"
+
+# Model deployments
+models:
+  completion: gpt-4.1
+  completion_mini: gpt-4.1-mini
+  embedding: text-embedding-3-large
+
+# Processing
+confidence_threshold: 0.60
+poll_interval_seconds: 5
+poll_timeout_seconds: 600
+
+# Unit normalization targets
+normalization:
+  assets_unit: billion       # Assets, Deposits, Loans → billions
+  deposits_unit: billion
+  loans_unit: billion
+  acl_unit: million          # ACL, Write-Offs → millions
+  writeoffs_unit: million
+
+# Province ↔ Deposit Guarantee Corporation mapping (for validation)
+province_guarantee_map:
+  Ontario: "DICO"
+  British Columbia: "CUDGC"
+  Alberta: "CUDIC"
+  Saskatchewan: "CUDGC SK"
+  Manitoba: "DGCM"
+  Quebec: "ASDQ"
+  New Brunswick: "NBCUDIC"
+  Nova Scotia: "NSCUDIC"
+  Prince Edward Island: "CUDIC PEI"
+  Newfoundland and Labrador: "CUDIC NL"
