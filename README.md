@@ -8,15 +8,14 @@ Built on **Azure AI Foundry**, **Content Understanding**, and **Azure OpenAI**.
 
 ## Architecture
 
-```
-PDF → Blob Storage → Agent 1 (Extraction) → Agent 2 (Validation) → Agent 3 (Output) → JSON
-```
+![Architecture Diagram](docs/images/Simple%20Architecture%20Diagram.png)
 
 | Agent   | Model         | Role                                              |
 | ------- | ------------- | ------------------------------------------------- |
-| Agent 1 | GPT-4.1 + Content Understanding | OCR + field extraction via custom analyzer |
-| Agent 2 | GPT-4.1-mini  | Validate, normalise units, flag corrections        |
-| Agent 3 | GPT-4.1       | Cross-check, assign confidence, produce final JSON |
+| Agent 0 | GPT-4.1-mini  | Classify PDFs into PCU vs Bank/FCU/Other           |
+| Agent 1 | GPT-4.1 (via Content Understanding) | OCR + field extraction via custom analyzer |
+| Agent 2 | GPT-5 (temp=0.0) | Validate, normalise units, flag corrections    |
+| Agent 3 | GPT-5 (temp=0.0) | Cross-check, assign confidence, produce final JSON |
 
 ## Fields Extracted
 
