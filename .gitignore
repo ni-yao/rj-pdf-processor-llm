@@ -24,6 +24,10 @@ output/
 # Logs
 *.log
 
+# Dashboard runtime state
+dashboard/.job_state.json
+.last_exit_code
+
 # IDE
 .vscode/
 .idea/
