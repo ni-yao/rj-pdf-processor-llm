@@ -1,8 +1,10 @@
 """Agent 0 — Classification Agent.
 
-Uses GPT-4.1-mini to match each PDF filename to the institution reference
-list and determine whether it belongs to the PCU or Bank/FCU/Other category.
-Files are physically moved into the appropriate intake subfolder.
+An agentic classifier: it matches each PDF to the institution reference list and
+determines whether it belongs to the PCU or Bank/FCU/Other category. When a
+filename is ambiguous it can call the ``read_document_text`` tool to inspect the
+PDF's first pages before deciding, rather than giving up. Files are physically
+moved into the appropriate intake subfolder.
 """
 
 from __future__ import annotations
@@ -16,6 +18,8 @@ from textwrap import dedent
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
+
+from src.agents.agentic import PdfTextTool, run_tool_loop
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +40,14 @@ _SYSTEM_PROMPT = dedent("""\
       year prefixes, extra punctuation, or informal names.
     - If the filename clearly matches an institution in one of the lists,
       return the match.
-    - If you cannot confidently match the filename to any institution,
-      return category "unclassified".
+    - If the filename is ambiguous or does not obviously match any
+      institution, call the read_document_text tool to read the first
+      page(s) of the PDF and identify the institution from its contents
+      BEFORE deciding.
+    - Only return category "unclassified" if, after inspecting the
+      document, you still cannot confidently match it to any institution.
 
-    Respond ONLY with a JSON object (no markdown fences):
+    When you have decided, respond ONLY with a JSON object (no markdown fences):
     {
       "institution": "<matched institution name from the list, or null>",
       "category": "<pcu | bank_fcu_other | unclassified>",
@@ -133,6 +141,7 @@ class ClassificationAgent:
             api_version="2025-04-01-preview",
         )
         self._deployment = deployment
+        self._max_iterations = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
 
     # ----------------------------------------------------------------- #
     #  Public API
@@ -160,7 +169,7 @@ class ClassificationAgent:
         results: list[ClassificationResult] = []
 
         for pdf_path in pdf_paths:
-            result = self._classify_one(pdf_path.name)
+            result = self._classify_one(pdf_path)
 
             # Move file to the appropriate subfolder
             dest_map = {
@@ -212,24 +221,38 @@ class ClassificationAgent:
         with open(path) as f:
             return json.load(f)
 
-    def _classify_one(self, filename: str) -> ClassificationResult:
-        """Call GPT-4.1-mini to classify a single filename."""
+    def _classify_one(self, pdf_path: Path) -> ClassificationResult:
+        """Classify a single PDF, inspecting its contents if the name is unclear.
+
+        Runs an agentic loop: the model may call ``read_document_text`` to read
+        the PDF's first pages before committing to a classification.
+        """
+        filename = pdf_path.name
         user_prompt = _USER_PROMPT_TEMPLATE.format(
             filename=filename,
             pcu_list=self._pcu_list,
             bank_fcu_other_list=self._bank_fcu_other_list,
         )
 
-        response = self._client.chat.completions.create(
-            model=self._deployment,
-            temperature=0.0,
+        pdf_tool = PdfTextTool(pdf_path)
+        tools = [pdf_tool.schema]
+
+        def dispatch(name: str, args: dict) -> str:
+            if name == pdf_tool.name:
+                return pdf_tool.run(args)
+            return f"ERROR: unknown tool '{name}'"
+
+        raw_text = run_tool_loop(
+            self._client,
+            deployment=self._deployment,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
+            tools=tools,
+            dispatch=dispatch,
+            max_iterations=self._max_iterations,
         )
-
-        raw_text = response.choices[0].message.content.strip()
 
         try:
             data = json.loads(raw_text)

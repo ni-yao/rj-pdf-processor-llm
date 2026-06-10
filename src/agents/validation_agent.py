@@ -1,7 +1,9 @@
 """Agent 2 — Validation & Normalization Agent.
 
-Uses GPT-4.1-mini to validate extracted data against business rules,
-normalise monetary units, and re-extract low-confidence or missing fields.
+An agentic validator: it drives the model deployed as ``GPT_41_DEPLOYMENT`` in a
+tool-using loop so it can search the FULL source document (``search_document``)
+and perform exact unit conversions (``calculate``) before validating extracted
+data against business rules and re-extracting low-confidence or missing fields.
 
 Supports category-specific prompts for PCU vs Bank/FCU/Other.
 """
@@ -16,6 +18,7 @@ from textwrap import dedent
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 
+from src.agents.agentic import CalculatorTool, DocumentSearchTool, run_tool_loop
 from src.models.schemas import (
     Correction,
     RawExtractionResult,
@@ -43,6 +46,15 @@ _SYSTEM_PROMPT_PCU = dedent("""\
       • Normalise monetary values to the required units.
       • Validate metadata fields.
 
+    YOU HAVE TOOLS — do not guess when you can verify:
+      • search_document(query) — search the FULL document text (the prompt only
+        includes a preview).  Use it to confirm low-confidence values, locate a
+        metric in a structured financial table, or find a value missing from the
+        extracted data.
+      • calculate(expression) — perform exact arithmetic.  Use it for EVERY unit
+        conversion and numeric consistency check instead of doing mental math.
+    Call tools as many times as you need, then give your final answer.
+
     CRITICAL RULE — structured data preferred:
       Always prefer values that come from structured financial tables
       (balance sheet, income statement, financial highlights, audited
@@ -69,6 +81,15 @@ _SYSTEM_PROMPT_BANK = dedent("""\
       • Ensure logical consistency among financial figures.
       • Normalise monetary values to the required units.
       • Validate credit rating fields.
+
+    YOU HAVE TOOLS — do not guess when you can verify:
+      • search_document(query) — search the FULL document text (the prompt only
+        includes a preview).  Use it to confirm low-confidence values, locate a
+        metric in a structured financial table, or find a value missing from the
+        extracted data.
+      • calculate(expression) — perform exact arithmetic.  Use it for EVERY unit
+        conversion and numeric consistency check instead of doing mental math.
+    Call tools as many times as you need, then give your final answer.
 
     CRITICAL RULE — structured data preferred:
       Always prefer values that come from structured financial tables
@@ -345,6 +366,7 @@ class ValidationAgent:
             api_version="2025-01-01-preview",
         )
         self.deployment = os.environ.get("GPT_41_DEPLOYMENT", "gpt-4.1")
+        self.max_iterations = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
 
         # Province → Guarantee Corp mapping for the prompt
         self.province_map = province_guarantee_map or {
@@ -359,7 +381,12 @@ class ValidationAgent:
         }
 
     def validate(self, raw: RawExtractionResult) -> ValidatedResult:
-        """Send the raw extraction to GPT-4.1-mini for validation."""
+        """Validate the raw extraction via an agentic tool-using loop.
+
+        The model may call ``search_document`` (full-text retrieval) and
+        ``calculate`` (exact arithmetic) as many times as it needs before
+        producing the final validated JSON.
+        """
         logger.info(
             "=== Agent 2: Validating '%s' (category=%s) ===",
             raw.source_file,
@@ -367,7 +394,15 @@ class ValidationAgent:
         )
 
         extracted_json = json.dumps(_raw_to_dict(raw), indent=2, default=str)
-        markdown = _truncate_markdown(raw.markdown_content or "")
+        full_markdown = raw.markdown_content or ""
+        if full_markdown:
+            markdown_for_prompt = (
+                "[This is a PREVIEW of the document. Use the search_document tool "
+                "to search the full text for anything not shown here.]\n\n"
+                + _truncate_markdown(full_markdown, 12_000)
+            )
+        else:
+            markdown_for_prompt = "(no document text available)"
 
         currency_unit = "unknown"
         if raw.reporting_currency_unit and raw.reporting_currency_unit.value:
@@ -378,7 +413,7 @@ class ValidationAgent:
             system_prompt = _SYSTEM_PROMPT_PCU
             user_prompt = _USER_PROMPT_PCU.format(
                 extracted_json=extracted_json,
-                markdown=markdown,
+                markdown=markdown_for_prompt,
                 currency_unit=currency_unit,
                 province_map=json.dumps(self.province_map),
             )
@@ -386,22 +421,34 @@ class ValidationAgent:
             system_prompt = _SYSTEM_PROMPT_BANK
             user_prompt = _USER_PROMPT_BANK.format(
                 extracted_json=extracted_json,
-                markdown=markdown,
+                markdown=markdown_for_prompt,
                 currency_unit=currency_unit,
             )
 
-        response = self.client.chat.completions.create(
-            model=self.deployment,
-            temperature=0.0,
+        # Tools the agent may call to gather evidence and compute conversions.
+        search_tool = DocumentSearchTool(full_markdown)
+        calc_tool = CalculatorTool()
+        tools = [search_tool.schema, calc_tool.schema]
+
+        def dispatch(name: str, args: dict) -> str:
+            if name == search_tool.name:
+                return search_tool.run(args)
+            if name == calc_tool.name:
+                return calc_tool.run(args)
+            return f"ERROR: unknown tool '{name}'"
+
+        content = run_tool_loop(
+            self.client,
+            deployment=self.deployment,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format={"type": "json_object"},
+            tools=tools,
+            dispatch=dispatch,
+            max_iterations=self.max_iterations,
         )
-
-        content = response.choices[0].message.content or "{}"
-        logger.debug("Agent 2 raw response: %s", content[:500])
+        logger.debug("Agent 2 final response: %s", content[:500])
 
         return self._parse_response(content, raw.category)
 

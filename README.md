@@ -10,12 +10,30 @@ Built on **Azure AI Foundry**, **Content Understanding**, and **Azure OpenAI**.
 
 ![Architecture Diagram](docs/images/Simple%20Architecture%20Diagram.png)
 
-| Agent   | Model         | Role                                              |
-| ------- | ------------- | ------------------------------------------------- |
-| Agent 0 | GPT-4.1-mini  | Classify PDFs into PCU vs Bank/FCU/Other           |
-| Agent 1 | GPT-4.1 (via Content Understanding) | OCR + field extraction via custom analyzer |
-| Agent 2 | GPT-5 (temp=0.0) | Validate, normalise units, flag corrections    |
-| Agent 3 | GPT-5 (temp=0.0) | Cross-check, assign confidence, produce final JSON |
+| Agent   | Model (Foundry deployment)        | Agentic?         | Role                                                                 |
+| ------- | --------------------------------- | ---------------- | -------------------------------------------------------------------- |
+| Agent 0 | `GPT_41_MINI_DEPLOYMENT`          | ✅ tool-using    | Classify PDFs into PCU vs Bank/FCU/Other. Can read the PDF's first pages (`read_document_text`) when the filename is ambiguous instead of giving up. |
+| Agent 1 | Content Understanding analyzer    | ❌ deterministic | OCR + field extraction via a custom analyzer. A managed-service wrapper — no LLM call of its own, so left as-is. |
+| Agent 2 | `GPT_41_DEPLOYMENT` (temp=0.0)    | ✅ tool-using    | Validate & normalise. Searches the **full** document (`search_document`) and computes exact unit conversions (`calculate`) in a reason→act loop. |
+| Agent 3 | `GPT_41_DEPLOYMENT` (temp=0.0)    | ✅ tool-using    | Final cross-check — verifies implausible figures against the source (`search_document`); the JSON is then assembled deterministically. |
+
+> **Deployment names:** the `*_DEPLOYMENT` variables point to whatever you deploy in Foundry. `.env.sample` maps `GPT_41_DEPLOYMENT` to a `gpt-5-chat` deployment, so "GPT-4.1" here refers to the variable, not necessarily the model.
+
+### Agentic design
+
+Agents 0, 2, and 3 are genuinely *agentic*: each drives its model in a tool-calling
+loop (reason → act → observe) via `src/agents/agentic.py`, calling tools and feeding
+results back until it is ready to answer, then emitting schema-valid JSON. Shared tools:
+
+| Tool | Used by | Purpose |
+|------|---------|---------|
+| `search_document` | Agents 2, 3 | Retrieve evidence from the **full** source document on demand (not a truncated dump) |
+| `calculate` | Agent 2 | Exact arithmetic for unit conversions and consistency checks |
+| `read_document_text` | Agent 0 | Read the PDF's first pages to disambiguate an unclear filename |
+
+Agent 1 stays deterministic by design — it wraps the managed Content Understanding
+service, where making it "agentic" would add no value. Loop depth is bounded by
+`AGENT_MAX_ITERATIONS` (default 6).
 
 ## Fields Extracted
 
@@ -81,6 +99,7 @@ copy .env.sample .env         # Windows
 | `CONFIDENCE_THRESHOLD` | Minimum confidence to accept a value (default `0.60`) |
 | `POLL_INTERVAL_SECONDS` | Polling interval for async analysis (default `5`) |
 | `POLL_TIMEOUT_SECONDS` | Max wait time for analysis (default `600`) |
+| `AGENT_MAX_ITERATIONS` | Max tool-calling iterations per agentic step (default `6`) |
 
 > **Authentication:** This project uses `DefaultAzureCredential` from the Azure Identity SDK — no API keys needed. Ensure you're logged in via `az login`, or running under a managed identity with the appropriate role assignments (see below).
 
@@ -147,19 +166,36 @@ rj-pdf-processor-llm/
 ├── src/
 │   ├── main.py                      # Pipeline orchestrator (entry point)
 │   ├── agents/
-│   │   ├── extraction_agent.py      # Agent 1 — Content Understanding extraction
-│   │   ├── validation_agent.py      # Agent 2 — GPT-4.1-mini validation
-│   │   └── output_agent.py          # Agent 3 — GPT-4.1 cross-check & assembly
+│   │   ├── agentic.py               # Shared agentic loop + tools (search/calculate/read-pdf)
+│   │   ├── classification_agent.py  # Agent 0 — agentic classifier (read-pdf tool)
+│   │   ├── extraction_agent.py      # Agent 1 — Content Understanding extraction (deterministic)
+│   │   ├── validation_agent.py      # Agent 2 — agentic validator (search + calculate tools)
+│   │   └── output_agent.py          # Agent 3 — agentic cross-check + deterministic assembly
 │   ├── models/
 │   │   └── schemas.py               # Pydantic data models
 │   └── services/
 │       ├── blob_storage.py          # Azure Blob Storage wrapper
 │       └── content_understanding.py # Content Understanding REST client
+├── tests/
+│   └── test_agentic.py              # Tests for the agentic loop + tools (no Azure needed)
 ├── .env.sample
 ├── DESIGN.md
 ├── README.md
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt
 ```
+
+---
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The suite (`tests/test_agentic.py`) covers the agentic loop and tools using a fake
+LLM client, so it runs without Azure credentials.
 
 ---
 

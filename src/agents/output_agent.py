@@ -1,7 +1,9 @@
 """Agent 3 — Cross-Check & Output Assembly Agent.
 
-Uses GPT-4.1 to perform a final quality gate on the validated data, then
-assembles the canonical JSON output for each institution.
+Runs the model deployed as ``GPT_41_DEPLOYMENT`` as a final quality gate on the
+validated data. The reviewer can call ``search_document`` to verify implausible
+figures against the source before flagging them; the canonical JSON output is
+then assembled deterministically (no LLM hand-assembly).
 
 Supports category-specific prompts for PCU vs Bank/FCU/Other.
 """
@@ -17,6 +19,7 @@ from textwrap import dedent
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 
+from src.agents.agentic import DocumentSearchTool, run_tool_loop
 from src.models.schemas import (
     ConfidenceValue,
     Correction,
@@ -50,6 +53,8 @@ _SYSTEM_PROMPT_PCU = dedent("""\
       • Confirm figures are in a reasonable range for a provincial credit
         union (e.g. assets typically $0.5B – $30B).
       • Validate Province ↔ Deposit Guarantee Corporation mapping.
+      • If any figure looks implausible, use the search_document tool to verify
+        it against the source document before correcting or flagging it.
       • Assign an overall extraction_quality score:
           "high"   – all fields present, no corrections, confidence ≥ 0.75
           "medium" – minor corrections or 1-2 missing fields
@@ -77,6 +82,8 @@ _SYSTEM_PROMPT_BANK = dedent("""\
       • Confirm figures are in a reasonable range for the institution type
         (e.g. Big 5 bank assets $300B – $2T; smaller banks $5B – $100B).
       • Verify credit ratings are valid rating agency scales.
+      • If any figure looks implausible, use the search_document tool to verify
+        it against the source document before correcting or flagging it.
       • Assign an overall extraction_quality score:
           "high"   – all fields present, no corrections, confidence ≥ 0.75
           "medium" – minor corrections or 1-2 missing fields
@@ -190,6 +197,7 @@ class OutputAgent:
             api_version="2025-01-01-preview",
         )
         self.deployment = os.environ.get("GPT_41_DEPLOYMENT", "gpt-4.1")
+        self.max_iterations = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
 
     def assemble(
         self,
@@ -234,18 +242,28 @@ class OutputAgent:
                 warnings_json=warnings_json,
             )
 
-        response = self.client.chat.completions.create(
-            model=self.deployment,
-            temperature=0.0,
+        # Tool: let the final reviewer verify implausible figures against the
+        # source document before flagging them. Assembly stays deterministic.
+        search_tool = DocumentSearchTool(raw.markdown_content or "")
+        tools = [search_tool.schema]
+
+        def dispatch(name: str, args: dict) -> str:
+            if name == search_tool.name:
+                return search_tool.run(args)
+            return f"ERROR: unknown tool '{name}'"
+
+        content = run_tool_loop(
+            self.client,
+            deployment=self.deployment,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format={"type": "json_object"},
+            tools=tools,
+            dispatch=dispatch,
+            max_iterations=self.max_iterations,
         )
-
-        content = response.choices[0].message.content or "{}"
-        logger.debug("Agent 3 raw response: %s", content[:500])
+        logger.debug("Agent 3 final response: %s", content[:500])
 
         return self._build_final_output(content, raw, validated)
 
